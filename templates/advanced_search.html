@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Расширенный поиск{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-white">
+            <h2><i class="fas fa-search-plus me-2"></i>Расширенный поиск</h2>
+        </div>
+
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('search') }}">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label for="query" class="form-label">Ключевые слова</label>
+                        <input type="text" class="form-control" id="query" name="q"
+                               value="{{ request.args.get('q', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Искать в:</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="filter" id="filter-title"
+                                   value="title" autocomplete="off" checked>
+                            <label class="btn btn-outline-primary" for="filter-title">Названиях</label>
+
+                            <input type="radio" class="btn-check" name="filter" id="filter-author"
+                                   value="author" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="filter-author">Авторах</label>
+
+                            <input type="radio" class="btn-check" name="filter" id="filter-character"
+                                   value="character" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="filter-character">Персонажах</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label for="year_from" class="form-label">Год от</label>
+                        <input type="number" class="form-control" id="year_from" name="year_from"
+                               min="1800" max="{{ current_year }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="year_to" class="form-label">Год до</label>
+                        <input type="number" class="form-control" id="year_to" name="year_to"
+                               min="1800" max="{{ current_year }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="sort" class="form-label">Сортировка</label>
+                        <select class="form-select" id="sort" name="sort">
+                            <option value="relevance">По релевантности</option>
+                            <option value="title_asc">По названию (А-Я)</option>
+                            <option value="title_desc">По названию (Я-А)</option>
+                            <option value="year_asc">По году (старые)</option>
+                            <option value="year_desc">По году (новые)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>Искать
+                    </button>
+                </div>
+            </form>
+
+            {% if results is defined %}
+            <hr class="my-4">
+            <h4 class="mb-3">Результаты поиска ({{ results|length }})</h4>
+
+            {% if results %}
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for book in results %}
+                <div class="col">
+                    {% include 'partials/book_card.html' %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>Ничего не найдено. Попробуйте изменить параметры поиска.
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

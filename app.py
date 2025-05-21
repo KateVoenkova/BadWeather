@@ -19,9 +19,13 @@ from sqlalchemy import or_
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/library.db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Создаем директорию для базы данных, если ее нет
+if not os.path.exists('/app/data'):
+    os.makedirs('/app/data', exist_ok=True)
 
 # Инициализация расширений
 db.init_app(app)

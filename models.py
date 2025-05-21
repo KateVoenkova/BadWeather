@@ -37,6 +37,13 @@ class Book(db.Model):
     characters = db.relationship('Character', backref='book', lazy=True)
     analyses = db.relationship('BookAnalysis', backref='book', lazy=True)
 
+    __table_args__ = (
+        # Индексы для поиска
+        db.Index('ix_book_title', 'title'),
+        db.Index('ix_book_author_last', 'author_last_name'),
+        db.Index('ix_book_author_first', 'author_first_name'),
+    )
+
     @property
     def author_full_name(self):
         """Возвращает полное ФИО автора"""
@@ -61,6 +68,10 @@ class Character(db.Model):
     normalized_name = db.Column(db.String(100), nullable=False, index=True)
     description = db.Column(db.Text)
     book_id = db.Column(db.Integer, db.ForeignKey('book.id'), nullable=False)
+
+    __table_args__ = (
+        db.Index('ix_character_name', 'name'),
+    )
 
 class CharacterRelationship(db.Model):
     id = db.Column(db.Integer, primary_key=True)

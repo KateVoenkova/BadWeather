@@ -10,26 +10,29 @@
         </div>
 
         <div class="card-body">
-            <form method="GET" action="{{ url_for('search') }}">
+            <form method="GET" action="{{ url_for('advanced_search') }}">
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label for="query" class="form-label">Ключевые слова</label>
                         <input type="text" class="form-control" id="query" name="q"
-                               value="{{ request.args.get('q', '') }}">
+                               value="{{ query or '' }}" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Искать в:</label>
                         <div class="btn-group w-100" role="group">
                             <input type="radio" class="btn-check" name="filter" id="filter-title"
-                                   value="title" autocomplete="off" checked>
+                                   value="title" autocomplete="off"
+                                   {% if filter == 'title' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="filter-title">Названиях</label>
 
                             <input type="radio" class="btn-check" name="filter" id="filter-author"
-                                   value="author" autocomplete="off">
+                                   value="author" autocomplete="off"
+                                   {% if filter == 'author' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="filter-author">Авторах</label>
 
                             <input type="radio" class="btn-check" name="filter" id="filter-character"
-                                   value="character" autocomplete="off">
+                                   value="character" autocomplete="off"
+                                   {% if filter == 'character' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="filter-character">Персонажах</label>
                         </div>
                     </div>
@@ -39,21 +42,19 @@
                     <div class="col-md-4">
                         <label for="year_from" class="form-label">Год от</label>
                         <input type="number" class="form-control" id="year_from" name="year_from"
-                               min="1800" max="{{ current_year }}">
+                               min="1800" max="{{ current_year }}" value="{{ year_from or '' }}">
                     </div>
                     <div class="col-md-4">
                         <label for="year_to" class="form-label">Год до</label>
                         <input type="number" class="form-control" id="year_to" name="year_to"
-                               min="1800" max="{{ current_year }}">
+                               min="1800" max="{{ current_year }}" value="{{ year_to or '' }}">
                     </div>
                     <div class="col-md-4">
                         <label for="sort" class="form-label">Сортировка</label>
                         <select class="form-select" id="sort" name="sort">
-                            <option value="relevance">По релевантности</option>
-                            <option value="title_asc">По названию (А-Я)</option>
-                            <option value="title_desc">По названию (Я-А)</option>
-                            <option value="year_asc">По году (старые)</option>
-                            <option value="year_desc">По году (новые)</option>
+                            {% for key, label in sort_labels.items() %}
+                            <option value="{{ key }}" {% if sort == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -65,15 +66,38 @@
                 </div>
             </form>
 
-            {% if results is defined %}
+            {% if query and results is defined %}
             <hr class="my-4">
-            <h4 class="mb-3">Результаты поиска ({{ results|length }})</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Результаты поиска ({{ results|length }})</h4>
+                <small class="text-muted">
+                    По запросу: "{{ query }}"
+                    {% if filter == 'title' %}(в названиях)
+                    {% elif filter == 'author' %}(в авторах)
+                    {% else %}(в персонажах){% endif %}
+                </small>
+            </div>
 
             {% if results %}
             <div class="row row-cols-1 row-cols-md-3 g-4">
                 {% for book in results %}
                 <div class="col">
-                    {% include 'partials/book_card.html' %}
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ book.title }}</h5>
+                            <p class="card-text text-muted">
+                                {{ book.author_last_name }} {{ book.author_first_name }}
+                                {% if book.author_middle_name %}{{ book.author_middle_name }}{% endif %}
+                            </p>
+                            <p class="card-text">{{ book.description|truncate(150) }}</p>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <a href="{{ url_for('book_page', book_id=book.id) }}"
+                               class="btn btn-sm btn-outline-primary">
+                                Подробнее
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>

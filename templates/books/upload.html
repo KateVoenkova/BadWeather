@@ -1,54 +1,69 @@
 {% extends "base.html" %}
 
+{% block title %}Загрузка книги{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="card shadow">
-        <div class="card-body">
-            <h2 class="mb-4">Добавить новую книгу</h2>
+        <div class="card-header bg-white">
+            <h2 class="mb-0">
+                <i class="fas fa-upload me-2"></i>Загрузка новой книги
+            </h2>
+        </div>
 
+        <div class="card-body">
             {% include 'partials/flash_messages.html' %}
 
-            <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+            <form method="POST" enctype="multipart/form-data" novalidate>
                 <div class="mb-3">
-                    <label for="title" class="form-label">Название книги</label>
+                    <label for="title" class="form-label">
+                        Название книги <span class="text-danger">*</span>
+                    </label>
                     <input type="text" class="form-control" id="title" name="title" required>
-                    <div class="invalid-feedback">Пожалуйста, введите название</div>
+                    <div class="invalid-feedback">Пожалуйста, укажите название книги</div>
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Автор книги</label>
+                    <label class="form-label">Автор книги <span class="text-danger">*</span></label>
                     <div class="row g-3">
                         <div class="col-md-4">
                             <input type="text" class="form-control" name="author_last_name"
-                                   placeholder="Фамилия*" required>
+                                   placeholder="Фамилия" required>
                         </div>
                         <div class="col-md-4">
                             <input type="text" class="form-control" name="author_first_name"
-                                   placeholder="Имя*" required>
+                                   placeholder="Имя" required>
                         </div>
                         <div class="col-md-4">
                             <input type="text" class="form-control" name="author_middle_name"
-                                   placeholder="Отчество">
+                                   placeholder="Отчество (если есть)">
                         </div>
                     </div>
                 </div>
 
-
                 <div class="mb-3">
-                    <label for="description" class="form-label">Описание (необязательно)</label>
+                    <label for="description" class="form-label">Описание книги</label>
                     <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                 </div>
 
                 <div class="mb-3">
-                    <label for="file" class="form-label">Текстовый файл</label>
+                    <label for="file" class="form-label">
+                        Текстовый файл (.txt) <span class="text-danger">*</span>
+                    </label>
                     <input class="form-control" type="file" id="file" name="file" accept=".txt" required>
-                    <div class="invalid-feedback">Выберите текстовый файл</div>
-                    <div class="form-text">Поддерживаются только файлы в формате TXT</div>
+                    <div class="form-text">
+                        Максимальный размер файла: 50 МБ. Текст должен быть в кодировке UTF-8.
+                    </div>
+                    <div class="invalid-feedback">Пожалуйста, выберите текстовый файл</div>
                 </div>
 
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Отмена</a>
-                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('library') }}" class="btn btn-secondary">
+                        <i class="fas fa-times me-1"></i> Отмена
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-1"></i> Загрузить
+                    </button>
                 </div>
             </form>
         </div>
@@ -59,16 +74,22 @@
 // Валидация формы на клиенте
 (function() {
     'use strict'
-    const forms = document.querySelectorAll('.needs-validation')
-    Array.from(forms).forEach(form => {
-        form.addEventListener('submit', function(event) {
-            if (!form.checkValidity()) {
-                event.preventDefault()
-                event.stopPropagation()
-            }
-            form.classList.add('was-validated')
-        }, false)
-    })
+
+    // Получаем все формы с классом needs-validation
+    var forms = document.querySelectorAll('form')
+
+    // Перебираем формы и добавляем обработчик
+    Array.prototype.slice.call(forms)
+        .forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }
+
+                form.classList.add('was-validated')
+            }, false)
+        })
 })()
 </script>
 {% endblock %}

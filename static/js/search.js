@@ -46,6 +46,21 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('sort').value = sort;
     }
 
+    // Быстрый поиск при вводе
+    const quickSearch = document.getElementById('quickSearch');
+    if (quickSearch) {
+        quickSearch.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            const cards = document.querySelectorAll('.book-card');
+
+            cards.forEach(card => {
+                const title = card.querySelector('.card-title').textContent.toLowerCase();
+                const author = card.querySelector('.card-author').textContent.toLowerCase();
+                card.style.display = (title.includes(query) || author.includes(query)) ? '' : 'none';
+            });
+        });
+    }
+
     // Быстрый поиск в библиотеке
     const quickSearchBtn = document.getElementById('quickSearchBtn');
     if (quickSearchBtn) {

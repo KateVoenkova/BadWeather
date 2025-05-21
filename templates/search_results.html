@@ -1,3 +1,5 @@
+# НЕ НУЖЕН - ADVANCED РАБОТАЕТ ЛУЧШЕ + ФУНКЦИОНАЛЬНЕЕ
+
 {% extends "base.html" %}
 
 {% block title %}Результаты поиска{% endblock %}
@@ -29,6 +31,16 @@
                     {% endif %}
                 </span>
             </div>
+        </div>
+        <div class="search-params mb-4">
+            {% if year_from or year_to %}
+            <span class="badge bg-secondary me-2">
+                Год: {{ year_from if year_from else 'любой' }} - {{ year_to if year_to else 'любой' }}
+            </span>
+            {% endif %}
+            <span class="badge bg-secondary">
+                Сортировка: {{ sort_labels[sort] }}
+            </span>
         </div>
 
         <div class="card-body">

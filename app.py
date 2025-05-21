@@ -16,11 +16,15 @@ import logging
 from functools import wraps
 from flask import send_from_directory, abort
 from sqlalchemy import or_
+from datetime import datetime
+from flask import request
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-123'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/library.db'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'txt'}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Создаем директорию для базы данных, если ее нет
@@ -150,61 +154,84 @@ def library():
     books = Book.query.filter_by(is_deleted=False).all()
     return render_template('books/library.html', books=books)
 
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash('Файл слишком большой. Максимальный размер - 50 МБ', 'danger')
+    return redirect(url_for('upload'))
+
 
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload():
     if request.method == 'POST':
         try:
-            # Проверки
+            # Проверка наличия файла
             if 'file' not in request.files:
                 flash('Файл не выбран', 'danger')
                 return redirect(url_for('upload'))
 
             file = request.files['file']
+
+            # Проверка размера файла (максимум 50 МБ)
+            if file.content_length > 50 * 1024 * 1024:
+                flash('Файл слишком большой (максимум 50 МБ)', 'danger')
+                return redirect(url_for('upload'))
+
+            # Получение данных формы
             title = request.form.get('title', '').strip()
             author_last_name = request.form.get('author_last_name', '').strip()
             author_first_name = request.form.get('author_first_name', '').strip()
-            #author_middle_name = request.form.get('author_middle_name', '').strip()
+            author_middle_name = request.form.get('author_middle_name', '').strip()
+            description = request.form.get('description', '').strip()
 
-            if not author_last_name or not author_first_name:
-                flash('Укажите фамилию и имя автора', 'danger')
-                return redirect(url_for('upload'))
-
-            if not title:
-                flash('Введите название книги', 'danger')
+            # Валидация данных
+            if not all([title, author_last_name, author_first_name]):
+                flash('Заполните все обязательные поля', 'danger')
                 return redirect(url_for('upload'))
 
             if not file.filename.lower().endswith('.txt'):
                 flash('Поддерживаются только TXT-файлы', 'danger')
                 return redirect(url_for('upload'))
 
-            # Создаем папку uploads если её нет
+            # Создание папки uploads если её нет
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-            # Сохраняем файл
+            # Генерация уникального имени файла
             filename = f"{uuid.uuid4()}.txt"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+            # Сохранение файла
             file.save(filepath)
 
-            # Создаем книгу в БД
+            # Определение кодировки файла
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    text = f.read()
+            except UnicodeDecodeError:
+                with open(filepath, 'rb') as f:
+                    encoding = chardet.detect(f.read())['encoding']
+                with open(filepath, 'r', encoding=encoding) as f:
+                    text = f.read()
+
+            # Создание записи о книге в БД
             new_book = Book(
                 title=title,
-                user_id=current_user.id,  # Устанавливаем связь через user_id
-                author_last_name=request.form.get('author_last_name', '').strip(),
-                author_first_name=request.form.get('author_first_name', '').strip(),
-                author_middle_name=request.form.get('author_middle_name', '').strip() or None,
-                description=request.form.get('description', '')
+                user_id=current_user.id,
+                author_last_name=author_last_name,
+                author_first_name=author_first_name,
+                author_middle_name=author_middle_name if author_middle_name else None,
+                description=description,
+                original_file=filename
             )
             db.session.add(new_book)
             db.session.commit()
 
-            # Обрабатываем файл
+            # Извлечение имен персонажей
             names = get_names_from_file(filepath)
             if not names:
-                raise ValueError("Не найдено имен персонажей")
+                flash('Не найдено имен персонажей в тексте', 'warning')
 
-            # Добавляем персонажей
+            # Добавление персонажей в БД
             for name in names:
                 character = Character(
                     name=name,
@@ -216,7 +243,7 @@ def upload():
 
             db.session.commit()
 
-            # Анализируем связи
+            # Анализ связей между персонажами
             find_relationships(new_book.id, filepath)
 
             flash('Книга успешно загружена!', 'success')
@@ -226,6 +253,9 @@ def upload():
             db.session.rollback()
             logger.error(f"Ошибка загрузки: {str(e)}", exc_info=True)
             flash(f'Ошибка загрузки: {str(e)}', 'danger')
+            # Удаляем файл, если он был сохранен
+            if 'filepath' in locals() and os.path.exists(filepath):
+                os.remove(filepath)
 
     return render_template('books/upload.html')
 
@@ -669,6 +699,120 @@ def restore_analysis(analysis_id):
     return redirect(url_for('dashboard'))
 
 
+# ---------------------------
+# Поиск
+# ---------------------------
+
+@app.route('/search')
+def search():
+    query = request.args.get('q', '').strip()
+    filter_type = request.args.get('filter', 'title')
+    year_from = request.args.get('year_from', type=int)
+    year_to = request.args.get('year_to', type=int)
+    sort = request.args.get('sort', 'relevance')
+
+    if not query:
+        return redirect(url_for('library'))
+
+    # Базовый запрос
+    q = Book.query.filter_by(is_deleted=False)
+
+    # Фильтрация по типу
+    if filter_type == 'title':
+        q = q.filter(Book.title.ilike(f'%{query}%'))
+    elif filter_type == 'author':
+        q = q.filter(or_(
+            Book.author_last_name.ilike(f'%{query}%'),
+            Book.author_first_name.ilike(f'%{query}%'),
+            Book.author_middle_name.ilike(f'%{query}%')
+        ))
+    elif filter_type == 'character':
+        q = q.join(Character).filter(Character.name.ilike(f'%{query}%'))
+
+    # Фильтрация по году
+    if year_from:
+        q = q.filter(Book.year >= year_from)
+    if year_to:
+        q = q.filter(Book.year <= year_to)
+
+    # Сортировка
+    if sort == 'title_asc':
+        q = q.order_by(Book.title.asc())
+    elif sort == 'title_desc':
+        q = q.order_by(Book.title.desc())
+    elif sort == 'year_asc':
+        q = q.order_by(Book.year.asc())
+    elif sort == 'year_desc':
+        q = q.order_by(Book.year.desc())
+    else:  # relevance
+        q = q.order_by(Book.title.ilike(f'%{query}%').desc())
+
+    results = q.all()
+
+    return render_template('search_results.html',
+                         query=query,
+                         filter=filter_type,
+                         results=results)
+
+
+@app.route('/advanced_search', methods=['GET'])
+def advanced_search():
+    query = request.args.get('q', '').strip()
+    filter_type = request.args.get('filter', 'title')
+    year_from = request.args.get('year_from', type=int)
+    year_to = request.args.get('year_to', type=int)
+    sort = request.args.get('sort', 'relevance')
+
+    sort_labels = {
+        'relevance': 'По релевантности',
+        'title_asc': 'По названию (А-Я)',
+        'title_desc': 'По названию (Я-А)',
+        'year_asc': 'По году (старые)',
+        'year_desc': 'По году (новые)'
+    }
+
+    results = []
+    if query:
+        q = Book.query.filter_by(is_deleted=False)
+
+        if filter_type == 'title':
+            q = q.filter(Book.title.ilike(f'%{query}%'))
+        elif filter_type == 'author':
+            q = q.filter(or_(
+                Book.author_last_name.ilike(f'%{query}%'),
+                Book.author_first_name.ilike(f'%{query}%'),
+                Book.author_middle_name.ilike(f'%{query}%')
+            ))
+        elif filter_type == 'character':
+            q = q.join(Character).filter(Character.name.ilike(f'%{query}%'))
+
+        if year_from:
+            q = q.filter(Book.year >= year_from)
+        if year_to:
+            q = q.filter(Book.year <= year_to)
+
+        if sort == 'title_asc':
+            q = q.order_by(Book.title.asc())
+        elif sort == 'title_desc':
+            q = q.order_by(Book.title.desc())
+        elif sort == 'year_asc':
+            q = q.order_by(Book.year.asc())
+        elif sort == 'year_desc':
+            q = q.order_by(Book.year.desc())
+        else:
+            q = q.order_by(Book.title.ilike(f'{query}%').desc())
+
+        results = q.all()
+
+    return render_template('advanced_search.html',
+                           query=query,
+                           filter=filter_type,
+                           year_from=year_from,
+                           year_to=year_to,
+                           sort=sort,
+                           sort_labels=sort_labels,
+                           results=results,
+                           current_year=datetime.now().year)
 
 # ---------------------------
 # Инициализация приложения

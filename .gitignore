@@ -4,4 +4,4 @@ venv
 .venv
 .env
 uploads/*
-instance
+instance/*

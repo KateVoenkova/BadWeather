@@ -21,7 +21,7 @@ from flask import request
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/library.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'txt'}

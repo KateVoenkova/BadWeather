@@ -22,8 +22,10 @@ class Book(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
+    original_file = db.Column(db.String(255))
     year = db.Column(db.Integer)
     is_deleted = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Связь с пользователем
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

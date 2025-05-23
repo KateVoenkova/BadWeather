@@ -164,98 +164,107 @@ def request_entity_too_large(error):
 @login_required
 def upload():
     if request.method == 'POST':
-        try:
-            # Проверка наличия файла
-            if 'file' not in request.files:
-                flash('Файл не выбран', 'danger')
-                return redirect(url_for('upload'))
+        success_count = 0
+        error_messages = []
 
-            file = request.files['file']
-
-            # Проверка размера файла (максимум 50 МБ)
-            if file.content_length > 50 * 1024 * 1024:
-                flash('Файл слишком большой (максимум 50 МБ)', 'danger')
-                return redirect(url_for('upload'))
-
-            # Получение данных формы
-            title = request.form.get('title', '').strip()
-            author_last_name = request.form.get('author_last_name', '').strip()
-            author_first_name = request.form.get('author_first_name', '').strip()
-            author_middle_name = request.form.get('author_middle_name', '').strip()
-            description = request.form.get('description', '').strip()
-
-            # Валидация данных
-            if not all([title, author_last_name, author_first_name]):
-                flash('Заполните все обязательные поля', 'danger')
-                return redirect(url_for('upload'))
-
-            if not file.filename.lower().endswith('.txt'):
-                flash('Поддерживаются только TXT-файлы', 'danger')
-                return redirect(url_for('upload'))
-
-            # Создание папки uploads если её нет
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-            # Генерация уникального имени файла
-            filename = f"{uuid.uuid4()}.txt"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-            # Сохранение файла
-            file.save(filepath)
-
-            # Определение кодировки файла
+        # Обрабатываем каждую книгу в форме
+        for i, file in enumerate(request.files.getlist('files')):
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    text = f.read()
-            except UnicodeDecodeError:
-                with open(filepath, 'rb') as f:
-                    encoding = chardet.detect(f.read())['encoding']
-                with open(filepath, 'r', encoding=encoding) as f:
-                    text = f.read()
+                # Пропускаем пустые файлы
+                if file.filename == '':
+                    continue
 
-            # Создание записи о книге в БД
-            new_book = Book(
-                title=title,
-                user_id=current_user.id,
-                author_last_name=author_last_name,
-                author_first_name=author_first_name,
-                author_middle_name=author_middle_name if author_middle_name else None,
-                description=description,
-                original_file=filename
-            )
-            db.session.add(new_book)
-            db.session.commit()
+                # Проверка размера файла (максимум 50 МБ)
+                if file.content_length > 50 * 1024 * 1024:
+                    error_messages.append(f"Файл '{file.filename}' слишком большой (максимум 50 МБ)")
+                    continue
 
-            # Извлечение имен персонажей
-            names = get_names_from_file(filepath)
-            if not names:
-                flash('Не найдено имен персонажей в тексте', 'warning')
+                # Получаем данные для текущей книги
+                title = request.form.get(f'titles[{i}]', '').strip()
+                author_last_name = request.form.get(f'author_last_names[{i}]', '').strip()
+                author_first_name = request.form.get(f'author_first_names[{i}]', '').strip()
+                author_middle_name = request.form.get(f'author_middle_names[{i}]', '').strip()
+                description = request.form.get(f'descriptions[{i}]', '').strip()
 
-            # Добавление персонажей в БД
-            for name in names:
-                character = Character(
-                    name=name,
-                    normalized_name=name.lower().strip(),
-                    description=f"Персонаж книги {title}",
-                    book_id=new_book.id
+                # Валидация данных
+                if not all([title, author_last_name, author_first_name]):
+                    error_messages.append(f"Не заполнены обязательные поля для файла '{file.filename}'")
+                    continue
+
+                if not file.filename.lower().endswith('.txt'):
+                    error_messages.append(f"Файл '{file.filename}' не является текстовым (.txt)")
+                    continue
+
+                # Создаем папку uploads если её нет
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+                # Генерируем уникальное имя файла
+                filename = f"{uuid.uuid4()}.txt"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+                # Сохраняем файл
+                file.save(filepath)
+
+                # Определяем кодировку файла
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                except UnicodeDecodeError:
+                    with open(filepath, 'rb') as f:
+                        encoding = chardet.detect(f.read())['encoding']
+                    with open(filepath, 'r', encoding=encoding) as f:
+                        text = f.read()
+
+                # Создаем запись о книге в БД
+                new_book = Book(
+                    title=title,
+                    user_id=current_user.id,
+                    author_last_name=author_last_name,
+                    author_first_name=author_first_name,
+                    author_middle_name=author_middle_name if author_middle_name else None,
+                    description=description,
+                    original_file=filename
                 )
-                db.session.add(character)
+                db.session.add(new_book)
+                db.session.commit()
 
-            db.session.commit()
+                # Извлекаем имена персонажей
+                names = get_names_from_file(filepath)
+                if not names:
+                    error_messages.append(f"Не найдено имен персонажей в файле '{file.filename}'")
 
-            # Анализ связей между персонажами
-            find_relationships(new_book.id, filepath)
+                # Добавляем персонажей в БД
+                for name in names:
+                    character = Character(
+                        name=name,
+                        normalized_name=name.lower().strip(),
+                        description=f"Персонаж книги {title}",
+                        book_id=new_book.id
+                    )
+                    db.session.add(character)
 
-            flash('Книга успешно загружена!', 'success')
-            return redirect(url_for('book_page', book_id=new_book.id))
+                db.session.commit()
 
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка загрузки: {str(e)}", exc_info=True)
-            flash(f'Ошибка загрузки: {str(e)}', 'danger')
-            # Удаляем файл, если он был сохранен
-            if 'filepath' in locals() and os.path.exists(filepath):
-                os.remove(filepath)
+                # Анализируем связи между персонажами
+                find_relationships(new_book.id, filepath)
+
+                success_count += 1
+
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Ошибка загрузки файла '{file.filename}': {str(e)}", exc_info=True)
+                error_messages.append(f"Ошибка обработки файла '{file.filename}': {str(e)}")
+                # Удаляем файл, если он был сохранен
+                if 'filepath' in locals() and os.path.exists(filepath):
+                    os.remove(filepath)
+
+        # Формируем итоговое сообщение
+        if success_count > 0:
+            flash(f'Успешно загружено {success_count} книг', 'success')
+        if error_messages:
+            flash('Ошибки при загрузке: ' + '; '.join(error_messages), 'danger')
+
+        return redirect(url_for('library'))
 
     return render_template('books/upload.html')
 

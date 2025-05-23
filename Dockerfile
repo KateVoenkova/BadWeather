@@ -18,4 +18,4 @@ EXPOSE 1199
 
 # Запускаем Gunicorn, указывая модуль и приложение (app:app)
 WORKDIR /app
-CMD ["/app/entrypoint.sh"]
+CMD ["sh", "/app/entrypoint.sh"]

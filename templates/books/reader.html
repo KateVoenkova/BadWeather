@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 {% block title %}Чтение: {{ book.title }}{% endblock %}
 
 {% block styles %}
@@ -8,110 +8,199 @@
     --reader-bg: #f5f5f5;
     --reader-content-bg: #fff;
     --reader-text: #333;
-    --reader-controls: #4a76a8;
-    --reader-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    --reader-controls: rgba(0, 0, 0, 0.7);
+    --reader-hover: rgba(0, 0, 0, 0.9);
+    --progress-bar: #4a90e2;
+    --progress-bg: #e0e0e0;
 }
 
-/* Темная тема */
 @media (prefers-color-scheme: dark) {
     :root {
         --reader-bg: #1a1a1a;
         --reader-content-bg: #2d2d2d;
         --reader-text: #e6e6e6;
-        --reader-controls: #5d8ac9;
-        --reader-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        --reader-controls: rgba(255, 255, 255, 0.7);
+        --reader-hover: rgba(255, 255, 255, 0.9);
+        --progress-bar: #5a9df6;
+        --progress-bg: #3a3a3a;
     }
 }
 
 .reader-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--reader-bg);
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 120px);
-    background-color: var(--reader-bg);
-    padding: 0;
+    overflow: hidden;
 }
 
 .reader-header {
-    padding: 15px 20px;
+    padding: 10px 20px;
     background-color: var(--reader-content-bg);
-    box-shadow: var(--reader-shadow);
-    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .reader-title {
-    font-size: 1.2rem;
+    font-size: 1rem;
     margin: 0;
     color: var(--reader-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 70%;
 }
 
 .reader-container {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    max-width: 900px;
-    margin: 0 auto;
-    width: 100%;
-    padding: 20px 15px;
+    position: relative;
+    overflow: hidden;
 }
 
 .reader-content {
     flex: 1;
-    padding: 25px;
-    background-color: var(--reader-content-bg);
+    padding: 20px;
     color: var(--reader-text);
-    line-height: 1.8;
-    font-size: 1.1rem;
-    border-radius: 8px;
-    box-shadow: var(--reader-shadow);
-    overflow-wrap: break-word;
-    hyphens: auto;
+    line-height: 1.6;
+    font-size: 18px;
     overflow-y: auto;
-    max-height: 70vh;
+    text-align: left;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    column-width: 100%;
+    column-gap: 40px;
+    column-fill: auto;
 }
 
-.reader-controls {
+.reader-nav {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-top: 20px;
-    padding: 15px 0;
-    border-top: 1px solid rgba(0,0,0,0.1);
+    justify-content: center;
+    z-index: 10;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
-.reader-btn {
-    padding: 10px 20px;
+.reader-nav:hover {
+    opacity: 1;
+}
+
+.reader-nav-left {
+    left: 0;
+}
+
+.reader-nav-right {
+    right: 0;
+}
+
+.reader-nav-arrow {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
     background-color: var(--reader-controls);
     color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: all 0.2s;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s;
 }
 
-.reader-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.reader-nav-arrow:hover {
+    background-color: var(--reader-hover);
+    transform: scale(1.1);
 }
 
-.reader-btn:hover:not(:disabled) {
-    opacity: 0.9;
-    transform: translateY(-1px);
+.reader-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: -60px;
+    padding: 10px 20px;
+    background-color: var(--reader-content-bg);
+    box-shadow: 0 -1px 3px rgba(0,0,0,0.1);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: bottom 0.3s ease;
 }
 
-.page-indicator {
+.reader-wrapper:hover .reader-footer {
+    bottom: 0;
+}
+
+.reader-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+
+.reader-progress-bar {
+    flex: 1;
+    height: 6px;
+    background-color: var(--progress-bg);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.reader-progress-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background-color: var(--progress-bar);
+    width: 0%;
+}
+
+.reader-progress-text {
     font-size: 0.9rem;
     color: var(--reader-text);
-    opacity: 0.8;
+    min-width: 80px;
+    text-align: center;
 }
 
-/* Анимации перелистывания */
+/* Скрываем элементы управления на мобильных устройствах */
+@media (max-width: 768px) {
+    .reader-nav {
+        display: none;
+    }
+
+    .reader-footer {
+        bottom: 0;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .reader-wrapper.mobile-controls-visible .reader-footer {
+        opacity: 1;
+    }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 @keyframes slideFromRight {
     from { transform: translateX(30px); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
@@ -129,113 +218,48 @@
 .slide-left {
     animation: slideFromLeft 0.3s ease-out;
 }
-
-/* Адаптация для мобильных */
-@media (max-width: 768px) {
-    .reader-wrapper {
-        min-height: calc(100vh - 60px);
-    }
-
-    .reader-header {
-        padding: 10px 15px;
-    }
-
-    .reader-title {
-        font-size: 1rem;
-    }
-
-    .reader-container {
-        padding: 10px;
-    }
-
-    .reader-content {
-        padding: 20px;
-        font-size: 1rem;
-        max-height: 65vh;
-    }
-
-    .reader-btn {
-        padding: 8px 15px;
-        font-size: 0.9rem;
-    }
-
-    .reader-controls {
-        padding: 10px 0;
-    }
-}
-
-/* Для очень маленьких экранов */
-@media (max-width: 480px) {
-    .reader-content {
-        padding: 15px;
-        font-size: 0.95rem;
-        line-height: 1.7;
-    }
-
-    .reader-btn {
-        padding: 6px 12px;
-    }
-
-    .page-indicator {
-        font-size: 0.8rem;
-    }
-}
-
-/* Настройки типографики для лучшей читаемости */
-.reader-content p {
-    margin-bottom: 1.2em;
-    text-align: justify;
-}
-
-.reader-content br {
-    content: "";
-    display: block;
-    margin-bottom: 0.8em;
-}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="reader-wrapper">
+<div class="reader-wrapper" id="readerWrapper">
     <div class="reader-header">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <h1 class="reader-title">{{ book.title }}</h1>
-                <div>
-                    <a href="{{ url_for('book_page', book_id=book.id) }}"
-                       class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i>
-                        <span class="d-none d-sm-inline">Назад</span>
-                    </a>
-                </div>
+        <h1 class="reader-title">{{ book.title }}</h1>
+        <a href="{{ url_for('book_page', book_id=book.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-times"></i>
+        </a>
+    </div>
+
+    <div class="reader-container">
+        <div class="reader-nav reader-nav-left" id="navLeft">
+            <div class="reader-nav-arrow">
+                <i class="fas fa-chevron-left"></i>
+            </div>
+        </div>
+
+        <div class="reader-content" id="readerContent"
+             data-book-id="{{ book.id }}"
+             data-current-page="{{ current_page }}"
+             data-total-pages="{{ total_pages }}"
+             data-font-size="18">
+            {{ pages[current_page-1]|replace('\n', '<br>')|safe }}
+        </div>
+
+        <div class="reader-nav reader-nav-right" id="navRight">
+            <div class="reader-nav-arrow">
+                <i class="fas fa-chevron-right"></i>
             </div>
         </div>
     </div>
 
-    <div class="container reader-container">
-        <div class="reader-content" id="readerContent"
-             data-book-id="{{ book.id }}"
-             data-current-page="{{ current_page }}"
-             data-total-pages="{{ total_pages }}">
-            {{ pages[current_page-1]|replace('\n', '<br>')|safe }}
-        </div>
-
-        <div class="reader-controls">
-            <button class="reader-btn" id="prevPage"
-                    {% if current_page <= 1 %}disabled{% endif %}>
-                <i class="fas fa-arrow-left"></i>
-                <span class="d-none d-sm-inline">Назад</span>
-            </button>
-
-            <div class="page-indicator">
-                <span id="currentPage">{{ current_page }}</span> / {{ total_pages }}
+    <div class="reader-footer" id="readerFooter">
+        <div class="reader-progress-container">
+            <div class="reader-progress-bar" id="progressBar">
+                <div class="reader-progress-fill" id="progressFill"></div>
             </div>
-
-            <button class="reader-btn" id="nextPage"
-                    {% if current_page >= total_pages %}disabled{% endif %}>
-                <span class="d-none d-sm-inline">Вперед</span>
-                <i class="fas fa-arrow-right"></i>
-            </button>
+            <div class="reader-progress-text" id="progressText">
+                <span id="currentPage">{{ current_page }}</span> / <span id="totalPages">{{ total_pages }}</span>
+            </div>
         </div>
     </div>
 </div>
@@ -244,30 +268,66 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const readerWrapper = document.getElementById('readerWrapper');
     const readerContent = document.getElementById('readerContent');
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
+    const navLeft = document.getElementById('navLeft');
+    const navRight = document.getElementById('navRight');
     const currentPageSpan = document.getElementById('currentPage');
+    const totalPagesSpan = document.getElementById('totalPages');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const readerFooter = document.getElementById('readerFooter');
 
     const bookId = readerContent.dataset.bookId;
     let currentPage = parseInt(readerContent.dataset.currentPage);
     let totalPages = parseInt(readerContent.dataset.totalPages);
+    let fontSize = parseInt(readerContent.dataset.fontSize);
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+    let isCtrlPressed = false;
+    let isMobile = window.innerWidth <= 768;
+    let mobileControlsVisible = false;
 
-    // Обработчики кнопок
-    prevPageBtn.addEventListener('click', goToPrevPage);
-    nextPageBtn.addEventListener('click', goToNextPage);
+    // Инициализация
+    updateProgressBar();
+    adjustColumns();
+
+    // Обработчики навигации
+    navLeft.addEventListener('click', goToPrevPage);
+    navRight.addEventListener('click', goToNextPage);
+
+    // Обработчик прогресс-бара
+    progressBar.addEventListener('click', function(e) {
+        const rect = this.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        const newPage = Math.max(1, Math.min(totalPages, Math.round(pos * totalPages)));
+        if (newPage !== currentPage) {
+            loadPage(newPage);
+        }
+    });
 
     // Обработчики свайпов
-    let touchStartX = 0;
-    let touchEndX = 0;
-
     readerContent.addEventListener('touchstart', function(e) {
-        touchStartX = e.changedTouches[0].screenX;
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
     }, { passive: true });
 
     readerContent.addEventListener('touchend', function(e) {
-        touchEndX = e.changedTouches[0].screenX;
+        touchEndX = e.changedTouches[0].clientX;
+        touchEndY = e.changedTouches[0].clientY;
         handleSwipe();
+
+        // На мобильных устройствах показываем/скрываем элементы управления по клику
+        if (isMobile) {
+            mobileControlsVisible = !mobileControlsVisible;
+            if (mobileControlsVisible) {
+                readerWrapper.classList.add('mobile-controls-visible');
+            } else {
+                readerWrapper.classList.remove('mobile-controls-visible');
+            }
+        }
     }, { passive: true });
 
     // Обработчики клавиатуры
@@ -278,32 +338,53 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
             e.preventDefault();
             goToNextPage();
+        } else if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+            e.preventDefault();
+            zoomIn();
+        } else if (e.ctrlKey && e.key === '-') {
+            e.preventDefault();
+            zoomOut();
+        } else if (e.key === 'Control') {
+            isCtrlPressed = true;
         }
     });
 
-    // Обработчик изменения ориентации экрана
-    window.addEventListener('orientationchange', adjustReaderHeight);
-    window.addEventListener('resize', adjustReaderHeight);
-
-    function adjustReaderHeight() {
-        const readerContent = document.querySelector('.reader-content');
-        if (readerContent) {
-            const headerHeight = document.querySelector('.reader-header').offsetHeight;
-            const controlsHeight = document.querySelector('.reader-controls').offsetHeight;
-            const newHeight = window.innerHeight - headerHeight - controlsHeight - 40;
-            readerContent.style.maxHeight = `${newHeight}px`;
+    document.addEventListener('keyup', function(e) {
+        if (e.key === 'Control') {
+            isCtrlPressed = false;
         }
-    }
+    });
 
-    // Вызываем сразу для установки начальной высоты
-    adjustReaderHeight();
+    // Обработчик колеса мыши с зажатым Ctrl
+    readerContent.addEventListener('wheel', function(e) {
+        if (isCtrlPressed) {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                zoomIn();
+            } else {
+                zoomOut();
+            }
+            adjustColumns();
+        }
+    }, { passive: false });
+
+    // Обработчик изменения размера окна
+    window.addEventListener('resize', function() {
+        isMobile = window.innerWidth <= 768;
+        adjustColumns();
+    });
 
     function handleSwipe() {
-        const threshold = 50;
-        if (touchEndX < touchStartX - threshold) {
-            goToNextPage();
-        } else if (touchEndX > touchStartX + threshold) {
-            goToPrevPage();
+        const xDiff = touchStartX - touchEndX;
+        const yDiff = touchStartY - touchEndY;
+
+        // Проверяем, что это горизонтальный свайп
+        if (Math.abs(xDiff) > Math.abs(yDiff)) {
+            if (xDiff > 50) {
+                goToNextPage();
+            } else if (xDiff < -50) {
+                goToPrevPage();
+            }
         }
     }
 
@@ -326,10 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
-                if (data.error) {
-                    showError(data.error);
-                    return;
-                }
+                if (data.error) throw new Error(data.error);
 
                 // Определяем направление анимации
                 const directionClass = page > currentPage ? 'slide-right' : 'slide-left';
@@ -343,39 +421,56 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentPage = data.current_page;
                     currentPageSpan.textContent = currentPage;
                     totalPages = data.total_pages;
-
-                    // Обновляем состояние кнопок
-                    prevPageBtn.disabled = currentPage <= 1;
-                    nextPageBtn.disabled = currentPage >= totalPages;
-
-                    // Прокручиваем к верху
-                    readerContent.scrollTo(0, 0);
+                    totalPagesSpan.textContent = totalPages;
+                    updateProgressBar();
+                    adjustColumns();
 
                     // Удаляем класс анимации
                     setTimeout(() => {
                         readerContent.classList.remove(directionClass);
                     }, 300);
-
-                    // Корректируем высоту после загрузки
-                    adjustReaderHeight();
                 }, 10);
             })
             .catch(error => {
                 console.error('Error:', error);
-                showError('Ошибка загрузки страницы');
+                alert(error.message);
             });
     }
 
-    function showError(message) {
-        const alert = document.createElement('div');
-        alert.className = 'alert alert-danger position-fixed top-0 start-50 translate-middle-x mt-3';
-        alert.style.zIndex = '1000';
-        alert.textContent = message;
-        document.body.appendChild(alert);
+    function zoomIn() {
+        if (fontSize < 30) {
+            fontSize += 1;
+            readerContent.style.fontSize = `${fontSize}px`;
+            adjustColumns();
+        }
+    }
 
-        setTimeout(() => {
-            alert.remove();
-        }, 3000);
+    function zoomOut() {
+        if (fontSize > 12) {
+            fontSize -= 1;
+            readerContent.style.fontSize = `${fontSize}px`;
+            adjustColumns();
+        }
+    }
+
+    function adjustColumns() {
+        // Автоматически определяем количество колонок в зависимости от размера шрифта и ширины экрана
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const contentHeight = readerContent.scrollHeight;
+        const fontSizePx = parseInt(window.getComputedStyle(readerContent).fontSize);
+
+        // Если текст занимает меньше 50% высоты экрана при текущем размере шрифта - включаем две колонки
+        if (contentHeight < height * 0.5 && width > 768) {
+            readerContent.style.columnCount = 2;
+        } else {
+            readerContent.style.columnCount = 1;
+        }
+    }
+
+    function updateProgressBar() {
+        const progress = (currentPage / totalPages) * 100;
+        progressFill.style.width = `${progress}%`;
     }
 });
 </script>

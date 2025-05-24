@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 {% block title %}Библиотека{% endblock %}
 
 {% block content %}
@@ -57,7 +57,7 @@
                            class="btn btn-sm btn-outline-secondary">
                             Подробнее
                         {% if book.is_text_available %}
-                        <a href="{{ url_for('read_book', book_id=book.id) }}" class="btn btn-info btn-sm">
+                        <a href="{{ url_for('read_book', book_id=book.id) }}" class="btn btn-primary btn-sm">
                             <i class="fas fa-book-open"></i> Читать
                         </a>
                         {% endif %}

@@ -4,6 +4,16 @@
 
 {% block content %}
 <div class="reader-container">
+    <!-- Кнопка назад -->
+    <button id="back-button" class="nav-button" title="Вернуться назад">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <!-- Кнопка выхода -->
+    <button id="exit-button" class="nav-button exit-btn" title="Выйти из книги">
+        <i class="fas fa-times"></i>
+    </button>
+
     <div id="book-content" class="book-content white-theme">
         <div id="text-display" class="text-display"></div>
         <div class="page-turner left-turner" id="left-turner"></div>
@@ -78,6 +88,40 @@
 </div>
 
 <style>
+
+/* Добавляем новые стили для кнопок навигации */
+.nav-button {
+    position: fixed;
+    top: 15px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+    font-size: 16px;
+}
+
+.nav-button:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+#back-button {
+    left: 15px;
+}
+
+#exit-button {
+    right: 15px;
+}
+
 .reader-container {
     position: relative;
     height: 100vh;
@@ -338,11 +382,16 @@ document.addEventListener('DOMContentLoaded', function() {
     let isScrollMode = true;
     let isSettingsOpen = false;
 
-    // Элементы настроек
+    // История навигации
+    const navigationHistory = [];
+    let currentHistoryIndex = -1;
+
+    // Элементы управления
     const settingsPanel = document.getElementById('settings-panel');
     const openSettingsBtn = document.getElementById('open-settings');
     const closeSettingsBtn = document.getElementById('close-settings');
-    const exitBtn = document.getElementById('exit-reader');
+    const backBtn = document.getElementById('back-button');
+    const exitBtn = document.getElementById('exit-button');
     const scrollModeSwitch = document.getElementById('scroll-mode');
     const brightnessSlider = document.querySelector('.brightness-slider');
     const fontSelect = document.querySelector('.font-select');
@@ -359,14 +408,51 @@ document.addEventListener('DOMContentLoaded', function() {
         loadSettings();
         setupEventListeners();
         updateDisplay();
+        addToHistory(currentPosition); // Инициализация истории
     }
 
-    // Загрузка прогресса
+    // ========== СИСТЕМА ИСТОРИИ ==========
+    function addToHistory(position) {
+        // Не добавляем дубликаты подряд
+        if (navigationHistory[currentHistoryIndex] === position) return;
+
+        navigationHistory.splice(currentHistoryIndex + 1);
+        navigationHistory.push(position);
+        currentHistoryIndex = navigationHistory.length - 1;
+
+        // Ограничиваем историю 50 записями
+        if (navigationHistory.length > 50) {
+            navigationHistory.shift();
+            currentHistoryIndex--;
+        }
+
+        updateBackButtonState();
+    }
+
+    function goBack() {
+        if (canGoBack()) {
+            currentHistoryIndex--;
+            currentPosition = navigationHistory[currentHistoryIndex];
+            updateDisplay();
+            saveProgress();
+            updateBackButtonState();
+        }
+    }
+
+    function canGoBack() {
+        return currentHistoryIndex > 0;
+    }
+
+    function updateBackButtonState() {
+        backBtn.style.opacity = canGoBack() ? '0.7' : '0.3';
+        backBtn.style.cursor = canGoBack() ? 'pointer' : 'default';
+    }
+
+    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
     function loadProgress() {
         const savedPosition = localStorage.getItem(`bookProgress_{{ book.id }}`);
         currentPosition = savedPosition ? parseInt(savedPosition) : 0;
 
-        // Загрузка с сервера
         fetch(`/api/get_reading_progress/{{ book.id }}`)
             .then(response => response.json())
             .then(data => {
@@ -377,9 +463,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Загрузка настроек
     function loadSettings() {
-        // Тема
+        // Загрузка темы
         const savedTheme = localStorage.getItem('readerTheme') || 'white';
         setTheme(savedTheme);
         document.querySelector(`.theme-btn.${savedTheme}`).classList.add('active');
@@ -406,14 +491,14 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleScrollMode();
     }
 
-    // Настройка обработчиков событий
     function setupEventListeners() {
+        // Навигация
+        backBtn.addEventListener('click', goBack);
+        exitBtn.addEventListener('click', exitReader);
+
         // Панель настроек
         openSettingsBtn.addEventListener('click', toggleSettings);
         closeSettingsBtn.addEventListener('click', toggleSettings);
-
-        // Выход
-        exitBtn.addEventListener('click', exitReader);
 
         // Настройки чтения
         scrollModeSwitch.addEventListener('change', function() {
@@ -453,46 +538,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 const theme = this.dataset.theme;
                 setTheme(theme);
                 localStorage.setItem('readerTheme', theme);
-
                 themeButtons.forEach(btn => btn.classList.remove('active'));
                 this.classList.add('active');
             });
         });
 
         // Перелистывание
-        leftTurner.addEventListener('click', prevPage);
-        rightTurner.addEventListener('click', nextPage);
+        leftTurner.addEventListener('click', function() {
+            addToHistory(currentPosition);
+            prevPage();
+        });
+
+        rightTurner.addEventListener('click', function() {
+            addToHistory(currentPosition);
+            nextPage();
+        });
 
         // Свайпы на мобильных
+        setupSwipeGestures();
+
+        // Сохранение при закрытии
+        window.addEventListener('beforeunload', saveProgress);
+    }
+
+    function setupSwipeGestures() {
         let touchStartX = 0;
+
         bookContent.addEventListener('touchstart', function(e) {
             touchStartX = e.changedTouches[0].screenX;
-        });
+        }, { passive: true });
 
         bookContent.addEventListener('touchend', function(e) {
             if (isScrollMode) return;
 
             const touchEndX = e.changedTouches[0].screenX;
             if (Math.abs(touchEndX - touchStartX) > 50) {
+                addToHistory(currentPosition);
                 if (touchEndX < touchStartX) nextPage();
                 else prevPage();
             }
-        });
-
-        // Сохранение при закрытии
-        window.addEventListener('beforeunload', saveProgress);
+        }, { passive: true });
     }
 
-    // Обновление отображения
+    // ========== ОТОБРАЖЕНИЕ ТЕКСТА ==========
     function updateDisplay() {
         if (isScrollMode) {
-            textDisplay.textContent = fullContent.substring(currentPosition);
+            showAllContent();
         } else {
             showCurrentPage();
         }
     }
 
-    // Показ текущей страницы (в режиме без прокрутки)
+    function showAllContent() {
+        textDisplay.textContent = fullContent.substring(currentPosition);
+        bookContent.classList.remove('no-scroll');
+        leftTurner.style.display = 'none';
+        rightTurner.style.display = 'none';
+    }
+
     function showCurrentPage() {
         const containerHeight = bookContent.clientHeight;
         let endPos = currentPosition;
@@ -506,9 +609,9 @@ document.addEventListener('DOMContentLoaded', function() {
             white-space: pre-wrap;
             word-wrap: break-word;
             width: ${textDisplay.clientWidth}px;
-            font-family: ${textDisplay.style.fontFamily || 'inherit'};
+            font-family: ${textDisplay.style.fontFamily};
             font-size: ${currentFontSize}px;
-            line-height: ${textDisplay.style.lineHeight || '1.6'};
+            line-height: ${textDisplay.style.lineHeight};
             padding: 0 20px;
         `;
         document.body.appendChild(tester);
@@ -521,36 +624,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Уточняем до ближайшего разрыва
-        const lastBreak = Math.max(
-            fullContent.lastIndexOf('\n', endPos),
-            fullContent.lastIndexOf(' ', endPos),
-            currentPosition + Math.floor((endPos - currentPosition) * 0.8)
-        );
-
-        if (lastBreak > currentPosition) {
-            endPos = lastBreak;
-        }
+        const lastBreak = findBestBreakPosition(currentPosition, endPos);
+        endPos = lastBreak > currentPosition ? lastBreak : endPos;
 
         document.body.removeChild(tester);
         textDisplay.textContent = fullContent.substring(currentPosition, endPos);
+        bookContent.classList.add('no-scroll');
+        leftTurner.style.display = 'block';
+        rightTurner.style.display = 'block';
     }
 
-    // Переключение режима прокрутки
-    function toggleScrollMode() {
-        if (isScrollMode) {
-            bookContent.classList.remove('no-scroll');
-            leftTurner.style.display = 'none';
-            rightTurner.style.display = 'none';
-            textDisplay.textContent = fullContent.substring(currentPosition);
-        } else {
-            bookContent.classList.add('no-scroll');
-            leftTurner.style.display = 'block';
-            rightTurner.style.display = 'block';
-            showCurrentPage();
+    function findBestBreakPosition(start, end) {
+        const preferredBreaks = [
+            fullContent.lastIndexOf('\n\n', end), // Двойной перенос строки
+            fullContent.lastIndexOf('\n', end),   // Одинарный перенос
+            fullContent.lastIndexOf('. ', end),   // Конец предложения
+            fullContent.lastIndexOf(' ', end)     // Просто пробел
+        ];
+
+        for (const pos of preferredBreaks) {
+            if (pos > start) return pos + 1;
         }
+        return end;
     }
 
-    // Следующая страница
+    // ========== УПРАВЛЕНИЕ СТРАНИЦАМИ ==========
     function nextPage() {
         if (isScrollMode) return;
 
@@ -566,7 +664,6 @@ document.addEventListener('DOMContentLoaded', function() {
         showCurrentPage();
     }
 
-    // Предыдущая страница
     function prevPage() {
         if (isScrollMode) return;
 
@@ -586,7 +683,6 @@ document.addEventListener('DOMContentLoaded', function() {
         showCurrentPage();
     }
 
-    // Расчет высоты текста
     function calculateTextHeight(text) {
         const tester = document.createElement('div');
         tester.style.cssText = `
@@ -595,9 +691,9 @@ document.addEventListener('DOMContentLoaded', function() {
             white-space: pre-wrap;
             word-wrap: break-word;
             width: ${textDisplay.clientWidth}px;
-            font-family: ${textDisplay.style.fontFamily || 'inherit'};
+            font-family: ${textDisplay.style.fontFamily};
             font-size: ${currentFontSize}px;
-            line-height: ${textDisplay.style.lineHeight || '1.6'};
+            line-height: ${textDisplay.style.lineHeight};
             padding: 0 20px;
         `;
         tester.textContent = text;
@@ -607,7 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return height;
     }
 
-    // Обновление размера шрифта
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function updateFontSize() {
         textDisplay.style.fontSize = `${currentFontSize}px`;
         fontSizeValue.textContent = `${currentFontSize}px`;
@@ -618,26 +714,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Установка темы
     function setTheme(theme) {
         bookContent.classList.remove('white-theme', 'sepia-theme', 'gray-theme', 'black-theme');
         bookContent.classList.add(`${theme}-theme`);
         currentTheme = theme;
     }
 
-    // Переключение панели настроек
     function toggleSettings() {
         isSettingsOpen = !isSettingsOpen;
         settingsPanel.classList.toggle('show', isSettingsOpen);
     }
 
-    // Выход из читалки
+    function toggleScrollMode() {
+        if (isScrollMode) {
+            showAllContent();
+        } else {
+            showCurrentPage();
+        }
+    }
+
     function exitReader() {
         saveProgress();
         window.location.href = "{{ url_for('book_page', book_id=book.id) }}";
     }
 
-    // Сохранение прогресса
     function saveProgress() {
         localStorage.setItem(`bookProgress_{{ book.id }}`, currentPosition);
 

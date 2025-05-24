@@ -6,7 +6,7 @@ from flask_bootstrap import Bootstrap
 from flask_migrate import Migrate
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Book, Character, CharacterRelationship, BookAnalysis
+from models import db, User, Book, Character, CharacterRelationship, BookAnalysis, ReadingProgress
 from name_parser import get_names_from_file
 from relationships import find_relationships
 import os
@@ -319,50 +319,6 @@ def delete_book(book_id):
     db.session.commit()
     flash('Книга удалена', 'success')
     return redirect(url_for('library'))
-
-
-@app.route('/book/<int:book_id>/read')
-@login_required
-def read_book(book_id):
-    book = Book.query.get_or_404(book_id)
-
-    if not book.is_text_available:
-        abort(404, description="Текстовая версия недоступна")
-
-    with open(book.get_file_path(original=False), 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    return render_template('book_reader.html',
-                           book=book,
-                           content=content)
-
-
-@app.route('/book/<int:book_id>/download/<file_type>')
-@login_required
-def download_book(book_id, file_type):
-    book = Book.query.get_or_404(book_id)
-
-    if file_type == 'original':
-        if not book.original_file:
-            abort(404)
-        return send_from_directory(
-            current_app.config['UPLOAD_FOLDER'],
-            book.original_file,
-            as_attachment=True,
-            download_name=f"{book.title}.{book.file_format}"
-        )
-    elif file_type == 'text':
-        if not book.text_file:
-            abort(404)
-        return send_from_directory(
-            current_app.config['UPLOAD_FOLDER'],
-            book.text_file,
-            as_attachment=True,
-            download_name=f"{book.title}.txt"
-        )
-    else:
-        abort(404)
-
 
 # ---------------------------
 # Авторы
@@ -822,6 +778,126 @@ def advanced_search():
                            sort_labels=sort_labels,
                            results=results,
                            current_year=datetime.now().year)
+
+# ---------------------------
+# Чтение
+# ---------------------------
+
+from flask import send_from_directory
+import os
+import chardet
+from datetime import datetime
+
+
+# ... другие импорты ...
+
+@app.route('/book/<int:book_id>/read')
+@login_required
+def read_book(book_id):
+    """Основной route для чтения книги с разбивкой на страницы"""
+    book = Book.query.get_or_404(book_id)
+
+    # Проверка прав доступа
+    if book.is_deleted and book.user_id != current_user.id and not current_user.is_admin:
+        abort(403)
+
+    if not book.is_text_available:
+        abort(404, description="Текст книги недоступен")
+
+    # Чтение файла с обработкой кодировки
+    filepath = book.get_file_path()
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        with open(filepath, 'rb') as f:
+            encoding = chardet.detect(f.read())['encoding']
+        with open(filepath, 'r', encoding=encoding) as f:
+            content = f.read()
+
+    # Разбивка на страницы (~1500 символов на страницу)
+    pages = [content[i:i + 1500] for i in range(0, len(content), 1500)]
+
+    # Проверка прогресса чтения
+    progress = ReadingProgress.query.filter_by(
+        user_id=current_user.id,
+        book_id=book.id
+    ).first()
+
+    start_page = progress.current_page if progress else 1
+
+    return render_template('books/reader.html',
+                           book=book,
+                           pages=pages,
+                           current_page=start_page,
+                           total_pages=len(pages))
+
+
+@app.route('/book/<int:book_id>/content/<int:page>')
+@login_required
+def get_book_page(book_id, page):
+    """API для получения конкретной страницы книги (AJAX)"""
+    book = Book.query.get_or_404(book_id)
+
+    if not book.is_text_available:
+        return jsonify({"error": "Текст недоступен"}), 404
+
+    filepath = book.get_file_path()
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        with open(filepath, 'rb') as f:
+            encoding = chardet.detect(f.read())['encoding']
+        with open(filepath, 'r', encoding=encoding) as f:
+            content = f.read()
+
+    pages = [content[i:i + 1500] for i in range(0, len(content), 1500)]
+
+    if page < 1 or page > len(pages):
+        return jsonify({"error": "Неверный номер страницы"}), 400
+
+    # Обновляем прогресс чтения
+    progress = ReadingProgress.query.filter_by(
+        user_id=current_user.id,
+        book_id=book.id
+    ).first()
+
+    if not progress:
+        progress = ReadingProgress(
+            user_id=current_user.id,
+            book_id=book.id,
+            current_page=page
+        )
+        db.session.add(progress)
+    else:
+        progress.current_page = page
+        progress.last_read = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({
+        "content": pages[page - 1],
+        "current_page": page,
+        "total_pages": len(pages)
+    })
+
+
+@app.route('/book/<int:book_id>/download')
+@login_required
+def download_book(book_id):
+    """Скачивание оригинального файла книги"""
+    book = Book.query.get_or_404(book_id)
+
+    if not book.is_text_available:
+        abort(404)
+
+    return send_from_directory(
+        current_app.config['UPLOAD_FOLDER'],
+        book.original_file,
+        as_attachment=True,
+        download_name=f"{book.title}.txt"
+    )
 
 # ---------------------------
 # Инициализация приложения

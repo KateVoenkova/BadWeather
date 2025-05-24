@@ -1,4 +1,7 @@
 # models.py
+import os
+
+from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
@@ -47,12 +50,42 @@ class Book(db.Model):
     )
 
     @property
+    def is_text_available(self):
+        """Проверяет доступен ли текстовый файл книги"""
+        if not self.original_file:
+            return False
+        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], self.original_file)
+        return os.path.exists(file_path)
+
+    def get_file_path(self):
+        """Возвращает полный путь к файлу книги"""
+        if not self.original_file:
+            return None
+        return os.path.join(current_app.config['UPLOAD_FOLDER'], self.original_file)
+
+    @property
     def author_full_name(self):
         """Возвращает полное ФИО автора"""
         parts = [self.author_last_name, self.author_first_name]
         if self.author_middle_name:
             parts.append(self.author_middle_name)
         return ' '.join(parts)
+
+
+class ReadingProgress(db.Model):
+    """Модель для хранения прогресса чтения"""
+    __tablename__ = 'reading_progress'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    book_id = db.Column(db.Integer, db.ForeignKey('book.id'))
+    current_page = db.Column(db.Integer, default=1)
+    last_read = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    book = db.relationship('Book', backref='reading_progresses')
+    user = db.relationship('User', backref='reading_progresses')
+
 
 class BookAnalysis(db.Model):
     id = db.Column(db.Integer, primary_key=True)

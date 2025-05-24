@@ -56,7 +56,11 @@
                         <a href="{{ url_for('book_page', book_id=book.id) }}"
                            class="btn btn-sm btn-outline-secondary">
                             Подробнее
+                        {% if book.is_text_available %}
+                        <a href="{{ url_for('read_book', book_id=book.id) }}" class="btn btn-info btn-sm">
+                            <i class="fas fa-book-open"></i> Читать
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
